@@ -4,6 +4,9 @@ It's just a component that displays a clock for Vue.
 # Requirement
 * Vue 2.6.11
 
+# Screen shot
+![画面](https://github.com/Tomson-Sakata/ClockForVue/blob/images/screenshot_1.jpg)
+
 # Usage
 1.copy src/components/Clock.vue to your project.
 
