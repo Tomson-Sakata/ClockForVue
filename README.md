@@ -41,12 +41,24 @@ It's just a component that displays a clock for Vue.
 
 # API
 
-    Properties
+* Properties
 
-        type ... Type of clock to be displayed. ("digital_normal" , "digital_mini" , "analog_normal" , "analog_icon") (default: "digital_normal")
-        isShowMilitaryTime ... 24-hour display or not. (default: false)
-        isShowAmPm ... "AM"/"PM" are displayed or not. (default: true)
-        ampmPosition ... Position to display "AM"/"PM" ("before" , "after") (default: "after")
-        color ... Text color (default: "black")
+|name|type|default|desctiption|
+|:---|:---|:---|:---|
+|type|String|"digital_normal"|Specify the type of clock to be displayed from one of the following.<br/>"digital_normal","digital_mini","analog_normal","analog_icon"|
+|isShowMilitaryTime|Boolean|false|24-hour display or not(*1)|
+|isShowAmPm|Boolean|true|"AM"/"PM" are displayed or not(*1)|
+|ampmPosition|String|"after"|Position to display "AM"/"PM"(*1)(*2)|
+|color|String|"#000000"|Text color(*1)|
+|bodyLineColor|Object|{r:0, g:0, b:0, a:1}|Frame color of the watch body(*3)|
+|bodyFillColor|Object|null|Color of the watch body(*3)|
+|dialColor|Object|{r:0, g:0, b:0, a:1}|Color of the clock face(*3)|
+|handHourColor|Object|{r:0, g:0, b:0, a:1}|Color of the watch's long hand(*3)|
+|handMinuteColor|Object|{r:0, g:0, b:0, a:1}|Color of the clock's short hand(*3)|
+|handSecondColor|Object|{r:255, g:0, b:0, a:1}|Color of the clock's second hand(*3)|
 
-        *Currently, only digital clocks are supported for each display property.
+(*1) ... Valid only when type="digital_normal" or "digital_mini".
+
+(*2) ... Valid only when isShowAmPm=true.
+
+(*3) ... Valid only when type="analog_normal" or "analog_icon".

@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div v-bind="$attrs">
         <div v-if="currentDateTime != null && type == 'digital_normal'" id="digitalFrame1">
             <span v-if="isShowAmPm && ampmPosition == 'before'" class="ampmBefore" :style="'color:'+color">{{currentDateTime.amPm}}</span>
             <span class="clock" :style="'color:'+color">{{("0"+(isShowMilitaryTime ? currentDateTime.hour24 : currentDateTime.hour12)).slice(-2)}}:{{("0"+currentDateTime.minute).slice(-2)}}:{{("0"+currentDateTime.second).slice(-2)}}</span>
@@ -36,16 +36,43 @@
         }
     }
     /**
+     * 現在日時を表すクラス
+     */
+    class CurrentDateTime {
+        /**
+         * コンストラクタ
+         */
+        constructor () {
+            this.refresh()
+        }
+        /**
+         * プロパティを更新します。
+         */
+        refresh () {
+            const date = new Date()
+            const hour = date.getHours()
+            this.year = date.getFullYear()
+            this.month = date.getMonth() + 1
+            this.day = date.getDate()
+            this.hour24 = hour
+            this.hour12 = hour - (hour >= 12 ? 12 : 0)
+            this.minute = date.getMinutes()
+            this.second = date.getSeconds()
+            this.amPm = (hour < 12 ? "AM" : "PM")
+            this.raw = date
+        }
+    }
+    /**
      * アナログ時計を表すクラス
      */
     class AnalogClock {
         /**
          * コンストラクタ
-         * @param {Function} callback 現在日時を返すコールバック
          * @param {Canvas} bottomCanvas 下地のキャンバス
          * @param {Canvas} topCanvas 針を描画するキャンバス
+         * @param {Object} params 時計描画の為のパラメーター
          */
-        constructor (callback, bottomCanvas, topCanvas) {
+        constructor (bottomCanvas, topCanvas, params) {
             this.canvasBottom = bottomCanvas
             this.contextBottom = bottomCanvas.getContext("2d")
             this.canvasTop = topCanvas
@@ -57,16 +84,23 @@
                 minute: {width:6, length:0.6},
                 second: {width:6, length:0.7}
             }
+            this.params = params
+            this.currentDateTime = new CurrentDateTime()
             this.drawBase()
-            this.drawHands(callback())
+            this.drawHands(this.currentDateTime)
             const self = this
-            setInterval(function() {self.drawHands(callback())}, 250)
-            console.log(this.hand)
+            const refresh = function () {
+                self.currentDateTime.refresh()
+                self.drawHands(self.currentDateTime)
+                setTimeout(refresh, 250)
+            }
+            refresh()
         }
         /**
          * 下地を描画します。
          */
         drawBase () {
+            this.contextBottom.clearRect(0, 0, this.canvasTop.width, this.canvasTop.height)
             this.onDrawBaseBody()
             this.onDrawBaseIndicator()
             this.onDrawBaseDial()
@@ -85,12 +119,17 @@
          */
         onDrawBaseBody () {
             this.contextBottom.beginPath()
-            this.contextBottom.strokeStyle = "rgba(0,0,0,1)"
+            this.contextBottom.strokeStyle = this.createRGBAColor(this.params.bodyLineColor)
             this.contextBottom.lineWidth = 8
             this.contextBottom.arc(this.center.x, this.center.y, this.radius * 0.98, 0, this.toRadian(360), false)
+            if (this.params.bodyFillColor != null) {
+                this.contextBottom.fillStyle = this.createRGBAColor(this.params.bodyFillColor)
+                this.contextBottom.fill()
+            }
             this.contextBottom.stroke()
+
             this.contextBottom.beginPath()
-            this.contextBottom.strokeStyle = "rgba(0,0,0,1)"
+            this.contextBottom.strokeStyle = this.createRGBAColor(this.params.bodyLineColor)
             this.contextBottom.lineWidth = 6
             this.contextBottom.arc(this.center.x, this.center.y, this.radius * 0.9, 0, this.toRadian(360), false)
             this.contextBottom.stroke()
@@ -104,7 +143,7 @@
                 this.contextBottom.translate(this.center.x, this.center.y)
                 this.contextBottom.rotate(this.toRadian(deg))
                 this.contextBottom.beginPath()
-                this.contextBottom.strokeStyle = "rgba(0,0,0,1)"
+                this.contextBottom.strokeStyle = this.createRGBAColor(this.params.bodyLineColor)
                 this.contextBottom.lineWidth = 4
                 this.contextBottom.moveTo(0, -(this.radius * 0.85))
                 this.contextBottom.lineTo(0, -(this.radius * 0.9))
@@ -118,13 +157,23 @@
          * 下地の文字盤(12,1,2 ... 11)を描画します。
          */
         onDrawBaseDial () {
+            // 文字の高さを取得
+            const font = "bold 50px sans-self"
+            const temp = document.createElement("span")
+            temp.font = font
+            temp.textContent = "0123456789"
+            document.body.appendChild(temp)
+            const height = temp.offsetHeight
+            document.body.removeChild(temp)
+
+            // 1～12を描画
             this.contextBottom.beginPath()
             this.contextBottom.font = "bold 50px sans-self"
-            this.contextBottom.textAlign = "center"
-            this.contextBottom.fillStyle = "rgba(0,0,0,1)"
+            this.contextBottom.textAlign = "center"            
+            this.contextBottom.fillStyle = this.createRGBAColor(this.params.dialColor)
             for (var h=1; h<=12; h++) {
                 const deg = h * 30
-                const p = this.getRotatedPosition(this.center.x, this.center.y, this.center.x, this.radius * 0.28, deg)
+                const p = this.getRotatedPosition(this.center.x, this.center.y, this.center.x, this.center.y - ( this.radius * 0.78 ) + (height / 2), deg)
                 this.contextBottom.fillText(""+h, p.x, p.y + 16)
             }
         }
@@ -134,7 +183,7 @@
          */
         onDrawHandHour (currentDateTime) {
             const position = this.getRotatedPosition(this.center.x, this.center.y, this.center.x, this.center.y - this.radius * this.hand.hour.length, currentDateTime.hour12 * 30 + (currentDateTime.minute / 60) * 30)
-            this.onDrawHand(position, this.hand.hour.width, {r:0, g:0, b:0})
+            this.onDrawHand(position, this.hand.hour.width, this.params.handHourColor)
         }
         /**
          * 分を示すの針を描画します。
@@ -142,7 +191,7 @@
          */
         onDrawHandMinute (currentDateTime) {
             const position = this.getRotatedPosition(this.center.x, this.center.y, this.center.x, this.center.y - this.radius * this.hand.minute.length, currentDateTime.minute * 6 + (currentDateTime.second / 60) * 6)
-            this.onDrawHand(position, this.hand.minute.width, {r:0, g:0, b:0})
+            this.onDrawHand(position, this.hand.minute.width, this.params.handMinuteColor)
         }
         /**
          * 秒を示すの針を描画します。
@@ -150,7 +199,7 @@
          */
         onDrawHandSecond (currentDateTime) {
             const position = this.getRotatedPosition(this.center.x, this.center.y, this.center.x, this.center.y - this.radius * this.hand.second.length, currentDateTime.second * 6)
-            this.onDrawHand(position, this.hand.second.width, {r:255, g:0, b:0})
+            this.onDrawHand(position, this.hand.second.width, this.params.handSecondColor)
         }
         /**
          * 引数で指定された内容で針を描画します。
@@ -161,11 +210,17 @@
         onDrawHand (position, width, color) {
             this.contextTop.beginPath()
             this.contextTop.lineCap = "round"
-            this.contextTop.strokeStyle = "rgba("+color.r+","+color.g+","+color.b+",1)"
+            this.contextTop.strokeStyle = this.createRGBAColor(color)
             this.contextTop.lineWidth = width
             this.contextTop.moveTo(this.center.x, this.center.y)
             this.contextTop.lineTo(position.x, position.y)
             this.contextTop.stroke()
+        }
+        /**
+         * 色を表すオブジェクトから、rgba(r,b,g,a)の文字列を作成します。
+         */
+        createRGBAColor (color) {
+            return "rgba("+color.r+","+color.g+","+color.b+","+color.a+")"
         }
         /**
          * 引数で指定された座標を指定された中心座標を軸に指定された角度回転した後の座標を返します。
@@ -193,6 +248,14 @@
             }
             return degree * Math.PI / 180
         }
+        /**
+         * パラメーターを設定します。
+         */
+        setParams (params) {
+            this.params = params
+            this.drawBase()
+            this.drawHands(this.currentDateTime)
+        }
     }
     /**
      * アナログ時計(小)を表すクラスで、アナログ時計クラスを継承します。
@@ -201,25 +264,29 @@
         /**
          * コンストラクタ
          * 基本クラスのパラメーターをこの時計用に変更します。
-         * @param {Function} callback 現在日時を返すコールバック
          * @param {Canvas} bottomCanvas 下地のキャンバス
          * @param {Canvas} topCanvas 針を描画するキャンバス
+         * @param {Object} params 時計描画の為のパラメーター
          */
-        constructor (callback, bottomCanvas, topCanvas) {
-            super(callback, bottomCanvas, topCanvas)
+        constructor (bottomCanvas, topCanvas, params) {
+            super(bottomCanvas, topCanvas, params)
             this.hand.hour.width = 2
             this.hand.hour.length = 0.5
             this.hand.minute.width = 2
-            this.hand.minute.length = 0.8
+            this.hand.minute.length = 0.65
         }
         /**
          * 基本クラスのdrawBaseをオーバーライドして、下地を描画します。
          */
         drawBase () {
             this.contextBottom.beginPath()
-            this.contextBottom.strokeStyle = "rgba(0,0,0,1)"
+            this.contextBottom.strokeStyle = this.createRGBAColor(this.params.bodyLineColor)
             this.contextBottom.lineWidth = 2
             this.contextBottom.arc(this.center.x, this.center.y, this.radius * 0.9, 0, this.toRadian(360), false)
+            if (this.params.bodyFillColor != null) {
+                this.contextBottom.fillStyle = this.createRGBAColor(this.params.bodyFillColor)
+                this.contextBottom.fill()
+            }
             this.contextBottom.stroke()
         }
         /**
@@ -230,6 +297,7 @@
     }
 
     export default {
+        inheritAttrs: false,
         props: {
             /**
              * 表示する時計の種類
@@ -265,8 +333,50 @@
              */
             color: {
                 type: String,
-                default: "black"
+                default: "#000000"
             },
+            /**
+             * 時計本体の線の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            bodyLineColor: {
+                type: Object,
+                default: function () {return {r:0, g:0, b:0, a:1}}
+            },
+            /**
+             * 時計本体の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            bodyFillColor: {
+                type: Object,
+                default: function () {return null}
+            },            
+            /**
+             * 時計の文字盤の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            dialColor: {
+                type: Object,
+                default: function () {return {r:0, g:0, b:0, a:1}}
+            },
+            /**
+             * 時計の長針の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            handHourColor: {
+                type: Object,
+                default: function () {return {r:0, g:0, b:0, a:1}}
+            },
+            /**
+             * 時計の短針の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            handMinuteColor: {
+                type: Object,
+                default: function () {return {r:0, g:0, b:0, a:1}}
+            },
+            /**
+             * 時計の秒針の色(type="analog_close" or "analog_icon" の時にのみ有効)
+             */
+            handSecondColor: {
+                type: Object,
+                default: function () {return {r:255, g:0, b:0, a:1}}
+            }
         },
         data: function () {
             return {
@@ -274,22 +384,49 @@
                 analogClock: null,
             }
         },
+        watch: {
+            bodyLineColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+            bodyFillColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+            dialColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+            handHourColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+            handMinuteColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+            handSecondColor: {
+                handler: function (value) {
+                    this.onUpdatedAnalogClockParams()
+                },
+                deep: true
+            },
+        },
         created: function () {
             const self = this
+            self.currentDateTime = new CurrentDateTime()
             const refreshCurrentDateTime = function () {
-                const date = new Date()
-                const hour = date.getHours()                
-                self.currentDateTime = {
-                    year: date.getFullYear(),
-                    month: date.getMonth() + 1,
-                    day: date.getDate(),
-                    hour24: hour,
-                    hour12: hour - (hour >= 12 ? 12 : 0),
-                    minute: date.getMinutes(),
-                    second: date.getSeconds(),
-                    amPm: (hour < 12 ? "AM" : "PM"),
-                    raw: date
-                }
+                self.currentDateTime.refresh()
                 setTimeout(refreshCurrentDateTime, 1000)
             }
             refreshCurrentDateTime()
@@ -298,16 +435,36 @@
             const self = this
             switch (this.type) {
                 case "analog_normal":
-                    this.analogClock = new AnalogClock(this.currentDateTimeCallback, this.$refs.analogClock1_bottom, this.$refs.analogClock1_top)
+                    this.analogClock = new AnalogClock(
+                        this.$refs.analogClock1_bottom, 
+                        this.$refs.analogClock1_top, 
+                        this.createAnalogParams()
+                    )
                     break;
                 case "analog_icon":
-                    this.analogClock = new AnalogClockMini(this.currentDateTimeCallback, this.$refs.analogClock2_bottom, this.$refs.analogClock2_top)
+                    this.analogClock = new AnalogClockMini(
+                        this.$refs.analogClock2_bottom, 
+                        this.$refs.analogClock2_top,
+                        this.createAnalogParams()
+                    )
                     break;
             }
         },
         methods: {
-            currentDateTimeCallback: function () {
-                return this.currentDateTime
+            onUpdatedAnalogClockParams: function () {
+                if (this.analogClock != null) {
+                    this.analogClock.setParams(this.createAnalogParams())
+                }
+            },
+            createAnalogParams: function () {
+                return {
+                    bodyLineColor: this.bodyLineColor,
+                    bodyFillColor: this.bodyFillColor,
+                    dialColor: this.dialColor,
+                    handHourColor: this.handHourColor,
+                    handMinuteColor: this.handMinuteColor,
+                    handSecondColor: this.handSecondColor,
+                }
             }
         }
     }
